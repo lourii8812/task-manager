@@ -1,6 +1,6 @@
 {
   "id": "./",
-  "name": "Lour's Task Manager",
+  "name": "Task Manager",
   "short_name": "Task Manager",
   "description": "A personal task manager and productivity companion.",
   "start_url": "./",
