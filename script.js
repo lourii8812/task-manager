@@ -581,167 +581,208 @@
   }
 
   // MINI WORDLE
-  const wordleWords = [
-    "APPLE", "BRAIN", "BRAVE", "BREAD", "BRICK",
-    "CHAIR", "CHESS", "CLOUD", "CRANE", "DREAM",
-    "EARTH", "FLAME", "FRAME", "FRUIT", "GIANT",
-    "GRACE", "GRAPE", "GREEN", "HEART", "HOUSE",
-    "LIGHT", "MANGO", "MONEY", "MUSIC", "NIGHT",
-    "OCEAN", "PAINT", "PAPER", "PEACH", "PEARL",
-    "PIANO", "PLANT", "PLATE", "POINT", "QUEEN",
-    "QUIET", "RADIO", "RIVER", "ROBOT", "SHEEP",
-    "SHINE", "SHIRT", "SMILE", "SNAKE", "SPACE",
-    "SPARK", "SPOON", "STARS", "STONE", "STORM",
-    "SUGAR", "TABLE", "TIGER", "TRAIN", "TRUST",
-    "WATER", "WHALE", "WORLD", "WRITE", "YOUTH"
-  ];
+let wordList = [];
+let allowedWords = new Set();
+let answer = "";
+let wordGuesses = [];
+let wordFinished = false;
+let wordleReady = false;
 
-  let wordleAnswer = "";
-  let wordleGuesses = [];
-  let wordleFinished = false;
+async function loadWords() {
+  const response = await fetch("./words.txt");
 
-  const wordleBoard = $("#wordle-board");
-  const wordleInput = $("#wordle-input");
-  const wordleMessage = $("#wordle-message");
-  const wordleForm = $("#wordle-form");
-
-  // Create a basic board without requiring additional CSS.
-  Object.assign(wordleBoard.style, {
-    display: "grid",
-    gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-    gap: "6px",
-    maxWidth: "300px",
-    margin: "16px auto"
-  });
-
-  function startWordle() {
-    wordleAnswer =
-      wordleWords[Math.floor(Math.random() * wordleWords.length)];
-
-    wordleGuesses = [];
-    wordleFinished = false;
-
-    wordleMessage.textContent = "Ready? Make your first guess!";
-    wordleInput.disabled = false;
-    wordleForm.querySelector("button[type='submit']").disabled = false;
-    wordleInput.value = "";
-
-    renderWordleBoard();
-    wordleInput.focus();
+  if (!response.ok) {
+    throw new Error(`Error: Couldn't load word list!`);
   }
 
-  function renderWordleBoard() {
-    wordleBoard.innerHTML = "";
+  const text = await response.text();
 
-    for (let row = 0; row < 6; row++) {
-      for (let col = 0; col < 5; col++) {
-        const tile = document.createElement("div");
-        const guess = wordleGuesses[row];
+  wordList = text
+    .split(/\s+/)
+    .map(word => word.trim().toUpperCase())
+    .filter(word => /^[A-Z]{5}$/.test(word));
 
-        tile.textContent = guess ? guess[col] : "";
+  if (wordList.length === 0) {
+    throw new Error(
+      "words.txt loaded, but it contains no valid five-letter words."
+    );
+  }
 
-        Object.assign(tile.style, {
-          aspectRatio: "1",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          border: "2px solid #b8b8cf",
-          borderRadius: "6px",
-          fontSize: "1.15rem",
-          fontWeight: "700",
-          minWidth: "0",
-          textTransform: "uppercase",
-          color: "#ffffff",
-          background: "transparent"
-        });
+  allowedWords = new Set(wordList);
+  wordleReady = true;
 
-        if (guess) {
-          const result = evaluateWordleGuess(guess);
-          const status = result[col];
+  console.log(`Wordle loaded ${wordList.length} words.`);
+}
 
-          tile.style.borderColor = "transparent";
-          tile.style.background =
-            status === "correct"
-              ? "#39864a"
-              : status === "present"
-                ? "#c29b24"
-                : "#777787";
-        }
+function pickWord() {
+  if (!wordList.length) return "";
+  return wordList[Math.floor(Math.random() * wordList.length)];
+}
 
-        wordleBoard.appendChild(tile);
+function scoreWord(guess, target) {
+  const marks = Array(5).fill("absent");
+  const remaining = target.split("");
+
+  // First, mark letters in the correct position.
+  for (let i = 0; i < 5; i++) {
+    if (guess[i] === target[i]) {
+      marks[i] = "correct";
+      remaining[i] = null;
+    }
+  }
+
+  // Then, mark letters that exist in another position.
+  for (let i = 0; i < 5; i++) {
+    if (marks[i] !== "correct") {
+      const idx = remaining.indexOf(guess[i]);
+
+      if (idx !== -1) {
+        marks[i] = "present";
+        remaining[idx] = null;
       }
     }
   }
 
-  function evaluateWordleGuess(guess) {
-    const result = Array(5).fill("absent");
-    const remaining = wordleAnswer.split("");
+  return marks;
+}
 
-    // Mark correct letters first.
-    for (let i = 0; i < 5; i++) {
-      if (guess[i] === wordleAnswer[i]) {
-        result[i] = "correct";
-        remaining[i] = null;
+function renderWordBoard() {
+  const board = document.getElementById("wordBoard");
+  if (!board) return;
+
+  board.innerHTML = "";
+
+  for (let row = 0; row < 6; row++) {
+    for (let col = 0; col < 5; col++) {
+      const tile = document.createElement("div");
+      tile.className = "word-tile";
+
+      if (wordGuesses[row]) {
+        tile.textContent = wordGuesses[row].word[col];
+        tile.classList.add(wordGuesses[row].marks[col]);
       }
+
+      board.appendChild(tile);
     }
-
-    // Then mark letters present elsewhere, accounting for duplicates.
-    for (let i = 0; i < 5; i++) {
-      if (result[i] === "correct") continue;
-
-      const index = remaining.indexOf(guess[i]);
-
-      if (index !== -1) {
-        result[i] = "present";
-        remaining[index] = null;
-      }
-    }
-
-    return result;
   }
+}
 
-  wordleForm.addEventListener("submit", event => {
+const wordForm = document.getElementById("wordForm");
+const wordInput = document.getElementById("wordInput");
+const wordStatus = document.getElementById("wordleStatus");
+const wordSubmitButton =
+  wordForm?.querySelector("button[type='submit']");
+
+if (wordForm && wordInput && wordStatus) {
+  wordForm.addEventListener("submit", event => {
     event.preventDefault();
 
-    if (wordleFinished) return;
+    if (!wordleReady) {
+      wordStatus.textContent =
+        "Loading the word list. Please wait a moment.";
+      return;
+    }
 
-    const guess = wordleInput.value.trim().toUpperCase();
+    if (wordFinished) return;
+
+    const guess = wordInput.value.trim().toUpperCase();
 
     if (!/^[A-Z]{5}$/.test(guess)) {
-      wordleMessage.textContent = "Enter exactly five letters.";
+      wordStatus.textContent = "Enter exactly five letters.";
       return;
     }
 
-    if (!wordleWords.includes(guess)) {
-      wordleMessage.textContent =
-        "That word isn't in this mini game's word list. Try another!";
+    if (!allowedWords.has(guess)) {
+      wordStatus.textContent =
+        "That word isn't in the word list. Try another.";
       return;
     }
 
-    wordleGuesses.push(guess);
-    renderWordleBoard();
-    wordleInput.value = "";
+    const marks = scoreWord(guess, answer);
 
-    if (guess === wordleAnswer) {
-      wordleFinished = true;
-      wordleMessage.textContent =
-        `You got it in ${wordleGuesses.length} ${wordleGuesses.length === 1 ? "try" : "tries"}! 🎉`;
-    } else if (wordleGuesses.length >= 6) {
-      wordleFinished = true;
-      wordleMessage.textContent =
-        `Game over! The word was ${wordleAnswer}.`;
+    wordGuesses.push({ word: guess, marks });
+    renderWordBoard();
+    wordInput.value = "";
+
+    if (guess === answer) {
+      wordFinished = true;
+      wordStatus.textContent =
+        `You got it! The word was ${answer}. 🎉`;
+    } else if (wordGuesses.length === 6) {
+      wordFinished = true;
+      wordStatus.textContent =
+        `Out of tries! The word was ${answer}.`;
     } else {
-      wordleMessage.textContent =
-        `${6 - wordleGuesses.length} guesses left. Keep going!`;
+      const remaining = 6 - wordGuesses.length;
+      wordStatus.textContent =
+        `${remaining} ${remaining === 1 ? "try" : "tries"} left.`;
     }
+  });
+}
 
-    if (wordleFinished) {
-      wordleInput.disabled = true;
-      wordleForm.querySelector("button[type='submit']").disabled = true;
+function resetWordle() {
+  if (!wordleReady) {
+    if (wordStatus) {
+      wordStatus.textContent =
+        "Loading the word list. Please wait a moment.";
+    }
+    return;
+  }
+
+  answer = pickWord();
+  wordGuesses = [];
+  wordFinished = false;
+
+  renderWordBoard();
+
+  if (wordStatus) {
+    wordStatus.textContent = "You have six tries!";
+  }
+
+  if (wordInput) {
+    wordInput.value = "";
+    wordInput.disabled = false;
+  }
+
+  if (wordSubmitButton) {
+    wordSubmitButton.disabled = false;
+  }
+}
+
+const wordleResetButton = document.getElementById("wordleReset");
+
+if (wordleResetButton) {
+  wordleResetButton.addEventListener("click", resetWordle);
+}
+
+if (wordInput) wordInput.disabled = true;
+if (wordSubmitButton) wordSubmitButton.disabled = true;
+
+if (wordStatus) {
+  wordStatus.textContent = "Loading the word list…";
+}
+
+renderWordBoard();
+
+loadWords()
+  .then(() => {
+    answer = pickWord();
+
+    if (wordInput) wordInput.disabled = false;
+    if (wordSubmitButton) wordSubmitButton.disabled = false;
+    if (wordStatus) wordStatus.textContent = "You have six tries!";
+
+    renderWordBoard();
+  })
+  .catch(error => {
+    console.error("Wordle word-list error:", error);
+
+    if (wordStatus) {
+      wordStatus.textContent =
+        "Could not load words.txt. Check that it is in the same folder and committed to GitHub.";
     }
   });
 
-  $("#wordle-reset").addEventListener("click", startWordle);
 
   // ROCK PAPER SCISSORS
   const rpsMoves = ["rock", "paper", "scissors"];
