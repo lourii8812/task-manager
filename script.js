@@ -965,7 +965,6 @@
   goTo("homescreen");
 
   // Start the games with a random answer.
-  startWordle();
   startNumberGame();
 
   // Ask for a name only if one has not been confirmed yet.
