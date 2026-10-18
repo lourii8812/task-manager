@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#191970">
+  <meta name="description" content="A cozy personal task manager and productivity companion.">
+  <title>Task Manager</title>
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div><p class="eyebrow">YOUR LITTLE PRODUCTIVITY SPACE</p><h1 id="page-title">Hello, Lour!</h1></div>
+      <div class="date-pill" id="today-label">Today</div>
+    </header>
+    <main>
+      <section id="homescreen" class="screen active">
+        <div class="hero card"><div><p class="eyebrow">ONE THING AT A TIME</p><h2>What are we working on?</h2><p class="muted">Keep your tasks in one place. You don't have to do everything at once.</p></div><div class="hero-orb" aria-hidden="true">✦</div></div>
+        <div class="summary-grid">
+          <article class="summary card"><span class="summary-icon">☑</span><span class="muted">Open tasks</span><strong id="home-open-count">0</strong></article>
+          <article class="summary card"><span class="summary-icon">✓</span><span class="muted">Completed</span><strong id="home-done-count">0</strong></article>
+          <article class="summary card"><span class="summary-icon">🔥</span><span class="muted">Day streak</span><strong id="home-streak-count">0</strong></article>
+        </div>
+        <h2 class="section-heading">Your tools</h2>
+        <div class="tool-grid">
+          <button class="tool-card" data-go="tasks"><span class="tool-icon">☑</span><span><strong>Tasks</strong><small>Deadlines and to-dos</small></span><span class="arrow">›</span></button>
+          <button class="tool-card" data-go="gwacalc"><span class="tool-icon">∑</span><span><strong>GWA Calculator</strong><small>Calculate your weighted average</small></span><span class="arrow">›</span></button>
+          <button class="tool-card" data-go="streak"><span class="tool-icon">🔥</span><span><strong>Daily Streak</strong><small>Show up for yourself</small></span><span class="arrow">›</span></button>
+          <button class="tool-card" data-go="tree"><span class="tool-icon">🌱</span><span><strong>Grow your tree</strong><small>Grow with completed tasks</small></span><span class="arrow">›</span></button>
+          <button class="tool-card" data-go="games"><span class="tool-icon">🎲</span><span><strong>Games~</strong><small>Take a tiny brain break</small></span><span class="arrow">›</span></button>
+        </div>
+        <section class="card upcoming-card"><div class="section-row"><h2>Coming up</h2><button class="text-button" data-go="tasks">See all</button></div><div id="home-upcoming" class="empty-state">No tasks yet. Add one when you're ready.</div></section>
+      </section>
+
+      <section id="tasks" class="screen">
+        <div class="section-row page-intro"><div><p class="eyebrow">STAY ON TRACK</p><h2>My tasks</h2></div><span class="count-chip" id="task-count">0 tasks</span></div>
+        <form id="task-form" class="card form-card">
+          <label for="task-input">Task name</label><input type="text" id="task-input" maxlength="80" placeholder="e.g. Finish Biology ILA" required>
+          <div class="form-grid">
+            <div><label for="task-due">Due date</label><input type="date" id="task-due" required></div>
+            <div><label for="task-type">Type</label><select id="task-type"><option value="Notes">Notes</option><option value="ILA">Independent Learning Activity</option><option value="FA">Formative Assessment</option><option value="AA">Alternative Assessment</option><option value="Project">Project</option><option value="Exam">Examination</option><option value="Required">Requirement</option><option value="Personal">Personal</option></select></div>
+          </div>
+          <button class="primary-button" type="submit">＋ Add task</button>
+        </form>
+        <div class="filter-row" role="group" aria-label="Filter tasks"><button class="filter-button active" data-filter="all">All</button><button class="filter-button" data-filter="open">To do</button><button class="filter-button" data-filter="done">Completed</button></div>
+        <div id="task-list" class="task-list"></div>
+      </section>
+
+      <section id="gwacalc" class="screen">
+        <div class="page-intro"><p class="eyebrow">NUMBERS, MADE SIMPLE</p><h2>GWA Calculator</h2><p class="muted">Add each subject's grade and unit value to calculate a weighted average.</p></div>
+        <div class="card gwa-result"><span class="muted">Current weighted average</span><strong id="gwa-result">—</strong><small id="gwa-details">Add a subject to begin.</small></div>
+        <form id="gwa-form" class="card form-card">
+          <label for="subject-name">Subject name</label><input id="subject-name" maxlength="60" placeholder="e.g. Mathematics" required>
+          <div class="form-grid"><div><label for="subject-grade">Grade</label><input id="subject-grade" type="number" min="1" max="5" step="0.01" placeholder="e.g. 1.25" required></div><div><label for="subject-units">Units</label><input id="subject-units" type="number" min="0.1" max="20" step="0.1" value="1" required></div></div>
+          <button class="primary-button" type="submit">＋ Add subject</button>
+        </form>
+        <div class="section-row"><h3>Subjects</h3><button id="clear-subjects" class="text-button">Clear all</button></div>
+        <div id="subject-list" class="stack-list empty-state">No subjects added yet.</div>
+        <p class="hint">This is a simple weighted-average calculator. Check your school's official grading rules for rounding, truncation, and special subject weights.</p>
+      </section>
+
+      <section id="streak" class="screen">
+        <div class="page-intro"><p class="eyebrow">SMALL STEPS COUNT</p><h2>Daily streak</h2><p class="muted">Check in once a day. A streak is a reminder, not a measure of your worth.</p></div>
+        <div class="card streak-card"><div class="flame">🔥</div><strong id="streak-number">0</strong><span>day streak</span><p id="streak-message" class="muted">Ready when you are.</p><button id="check-in-button" class="primary-button">Check in for today</button></div>
+        <div class="card streak-info"><h3>Your check-in</h3><p id="last-checkin">You haven't checked in yet.</p><p class="hint">Checking in more than once on the same day won't add extra days.</p></div>
+      </section>
+
+      <section id="tree" class="screen">
+        <div class="page-intro"><p class="eyebrow">PROGRESS, NOT PERFECTION</p><h2>Grow your tree</h2><p class="muted">Every completed task gives your tree a little energy.</p></div>
+        <div class="card tree-card"><div id="tree-art" class="tree-art" aria-label="Your growing tree">🌱</div><h3 id="tree-stage">A tiny sprout</h3><p id="tree-progress" class="muted">Complete a task to help it grow.</p><div class="progress-track"><div id="tree-progress-fill" class="progress-fill"></div></div><small id="tree-total">0 completed tasks counted</small></div>
+        <div class="card"><h3>How it grows</h3><ul class="simple-list"><li>🌱 0–2 completed tasks: sprout</li><li>🌿 3–5 completed tasks: young plant</li><li>🌳 6–9 completed tasks: growing tree</li><li>🌸 10+ completed tasks: flourishing tree</li></ul></div>
+      </section>
+
+      <section id="games" class="screen">
+        <div class="page-intro"><p class="eyebrow">A LITTLE RESET</p><h2>Games~</h2><p class="muted">Quick, low-pressure breaks between study sessions.</p></div>
+        <div class="card game-card"><div class="game-emoji">🎲</div><h3>Break-time dice</h3><p id="break-prompt">Roll for a tiny break idea.</p><button id="roll-dice" class="primary-button">Roll the dice</button></div>
+        <div class="card game-card"><div class="game-emoji">🧠</div><h3>Quick focus challenge</h3><p id="focus-prompt">Pick one tiny thing to finish in five minutes.</p><button id="new-challenge" class="secondary-button">Give me a challenge</button></div>
+      </section>
+    </main>
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <button class="nav-button active" data-go="homescreen"><span>⌂</span><small>Home</small></button><button class="nav-button" data-go="tasks"><span>☑</span><small>Tasks</small></button><button class="nav-button" data-go="gwacalc"><span>∑</span><small>GWA</small></button><button class="nav-button" data-go="streak"><span>🔥</span><small>Streak</small></button>
+    </nav>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="./script.js"></script>
+</body>
+</html>
