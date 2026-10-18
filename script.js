@@ -1,36 +1,934 @@
 (() => {
   "use strict";
-  const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
-  const STORAGE = { tasks:"lour-task-manager-tasks-v1", subjects:"lour-task-manager-subjects-v1", streak:"lour-task-manager-streak-v1" };
-  const read = (key, fallback) => { try { const value=localStorage.getItem(key); return value ? JSON.parse(value) : fallback; } catch { return fallback; } };
-  const save = (key, value) => localStorage.setItem(key, JSON.stringify(value));
-  let tasks=read(STORAGE.tasks,[]), subjects=read(STORAGE.subjects,[]), streak=read(STORAGE.streak,{count:0,lastDate:null}), taskFilter="all", toastTimer;
-  const todayISO=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;};
-  const dateLabel=iso=>{if(!iso)return "No date";const d=new Date(`${iso}T12:00:00`);return Number.isNaN(d.getTime())?iso:d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"});};
-  const esc=v=>String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-  function toast(message){const n=$("#toast");n.textContent=message;n.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>n.classList.remove("show"),2200);}
-  function goTo(id){if(!document.getElementById(id))return;$$(".screen").forEach(s=>s.classList.toggle("active",s.id===id));$$(".nav-button").forEach(b=>b.classList.toggle("active",b.dataset.go===id));const titles={homescreen:"Hello, Lour!",tasks:"My tasks",gwacalc:"GWA Calculator",streak:"Daily streak",tree:"Grow your tree",games:"Games~"};$("#page-title").textContent=titles[id]||"Task Manager";window.scrollTo({top:0,behavior:"smooth"});if(id==="tasks")renderTasks();}
-  $$("[data-go]").forEach(b=>b.addEventListener("click",()=>goTo(b.dataset.go)));
-  $("#today-label").textContent=new Date().toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});
-  function renderHome(){const done=tasks.filter(t=>t.done).length;$("#home-open-count").textContent=tasks.length-done;$("#home-done-count").textContent=done;$("#home-streak-count").textContent=streak.count;const upcoming=tasks.filter(t=>!t.done).sort((a,b)=>a.due.localeCompare(b.due)).slice(0,3);const node=$("#home-upcoming");if(!upcoming.length){node.className="empty-state";node.textContent=tasks.length?"Everything is completed. Nice work!":"No tasks yet. Add one when you're ready.";return;}node.className="";node.innerHTML=upcoming.map(t=>`<div class="upcoming-item"><div><strong>${esc(t.name)}</strong><small>${esc(t.type)}</small></div><small>${dateLabel(t.due)}</small></div>`).join("");}
-  function renderTasks(){const list=$("#task-list");const visible=tasks.filter(t=>taskFilter==="all"||(taskFilter==="open"&&!t.done)||(taskFilter==="done"&&t.done)).sort((a,b)=>Number(a.done)-Number(b.done)||a.due.localeCompare(b.due));$("#task-count").textContent=`${tasks.length} task${tasks.length===1?"":"s"}`;if(!visible.length){list.innerHTML=`<div class="card empty-state">${taskFilter==="done"?"No completed tasks yet.":taskFilter==="open"?"You're all caught up!":"No tasks here yet. Add your first task above."}</div>`;return;}list.innerHTML=visible.map(t=>{const overdue=!t.done&&t.due<todayISO();return `<article class="task-item ${t.done?"done":""}"><input class="task-check" type="checkbox" data-task-check="${t.id}" ${t.done?"checked":""} aria-label="Mark ${esc(t.name)} complete"><div class="task-main"><p class="task-name">${esc(t.name)}</p><div class="task-meta"><span class="type-chip">${esc(t.type)}</span><span class="${overdue?"overdue":""}">${overdue?"Overdue · ":"Due · "}${dateLabel(t.due)}</span></div></div><button class="delete-button" data-task-delete="${t.id}" aria-label="Delete ${esc(t.name)}" title="Delete task">×</button></article>`;}).join("");}
-  $("#task-form").addEventListener("submit",e=>{e.preventDefault();const name=$("#task-input").value.trim(),due=$("#task-due").value;if(!name||!due)return;tasks.push({id:`${Date.now()}-${Math.random().toString(16).slice(2)}`,name,due,type:$("#task-type").value,done:false});save(STORAGE.tasks,tasks);$("#task-form").reset();$("#task-due").value=todayISO();renderAll();toast("Task added!");});
-  $("#task-due").value=todayISO();
-  $("#task-list").addEventListener("change",e=>{const id=e.target.dataset.taskCheck;if(!id)return;const task=tasks.find(t=>t.id===id);if(!task)return;task.done=e.target.checked;save(STORAGE.tasks,tasks);renderAll();toast(task.done?"Task completed. Nice work!":"Task moved back to to-do.");});
-  $("#task-list").addEventListener("click",e=>{const b=e.target.closest("[data-task-delete]");if(!b)return;tasks=tasks.filter(t=>t.id!==b.dataset.taskDelete);save(STORAGE.tasks,tasks);renderAll();toast("Task deleted.");});
-  $$(".filter-button").forEach(b=>b.addEventListener("click",()=>{taskFilter=b.dataset.filter;$$(".filter-button").forEach(x=>x.classList.toggle("active",x===b));renderTasks();}));
-  function renderSubjects(){const list=$("#subject-list");if(!subjects.length){list.className="stack-list empty-state";list.textContent="No subjects added yet.";$("#gwa-result").textContent="—";$("#gwa-details").textContent="Add a subject to begin.";return;}list.className="stack-list";list.innerHTML=subjects.map(s=>`<div class="subject-row"><div><strong>${esc(s.name)}</strong><small>${s.units} unit${s.units===1?"":"s"}</small></div><div style="display:flex;align-items:center;gap:10px"><span class="subject-grade">${Number(s.grade).toFixed(2)}</span><button class="delete-button" data-subject-delete="${s.id}" aria-label="Delete ${esc(s.name)}">×</button></div></div>`).join("");const units=subjects.reduce((a,s)=>a+Number(s.units),0),weighted=subjects.reduce((a,s)=>a+Number(s.grade)*Number(s.units),0);$("#gwa-result").textContent=(weighted/units).toFixed(2);$("#gwa-details").textContent=`${subjects.length} subject${subjects.length===1?"":"s"} · ${units.toFixed(1)} total units`;}
-  $("#gwa-form").addEventListener("submit",e=>{e.preventDefault();const name=$("#subject-name").value.trim(),grade=Number($("#subject-grade").value),units=Number($("#subject-units").value);if(!name||!Number.isFinite(grade)||grade<1||grade>5||!Number.isFinite(units)||units<=0){toast("Enter a valid subject, grade, and unit value.");return;}subjects.push({id:`${Date.now()}-${Math.random().toString(16).slice(2)}`,name,grade,units});save(STORAGE.subjects,subjects);$("#gwa-form").reset();$("#subject-units").value="1";renderSubjects();toast("Subject added!");});
-  $("#subject-list").addEventListener("click",e=>{const b=e.target.closest("[data-subject-delete]");if(!b)return;subjects=subjects.filter(s=>s.id!==b.dataset.subjectDelete);save(STORAGE.subjects,subjects);renderSubjects();toast("Subject removed.");});
-  $("#clear-subjects").addEventListener("click",()=>{if(!subjects.length)return toast("There are no subjects to clear.");if(!confirm("Clear all subjects from the GWA calculator?"))return;subjects=[];save(STORAGE.subjects,subjects);renderSubjects();toast("Subjects cleared.");});
-  function renderStreak(){const checked=streak.lastDate===todayISO();$("#streak-number").textContent=streak.count;$("#home-streak-count").textContent=streak.count;$("#check-in-button").disabled=checked;$("#check-in-button").textContent=checked?"Checked in today ✓":"Check in for today";$("#check-in-button").style.opacity=checked?".7":"1";$("#streak-message").textContent=checked?"You showed up for yourself today.":"One small check-in is enough.";$("#last-checkin").textContent=streak.lastDate?`Last check-in: ${dateLabel(streak.lastDate)}.`:"You haven't checked in yet.";}
-  $("#check-in-button").addEventListener("click",()=>{const today=todayISO();if(streak.lastDate===today)return toast("You've already checked in today.");const d=new Date();d.setDate(d.getDate()-1);const y=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;streak.count=streak.lastDate===y?streak.count+1:1;streak.lastDate=today;save(STORAGE.streak,streak);renderStreak();renderHome();toast("Check-in saved. Keep going at your own pace!");});
-  function renderTree(){const done=tasks.filter(t=>t.done).length;let emoji="🌱",stage="A tiny sprout",next=3;if(done>=10){emoji="🌸";stage="A flourishing tree";next=done;}else if(done>=6){emoji="🌳";stage="A growing tree";next=10;}else if(done>=3){emoji="🌿";stage="A young plant";next=6;}$("#tree-art").textContent=emoji;$("#tree-stage").textContent=stage;$("#tree-total").textContent=`${done} completed task${done===1?"":"s"} counted`;if(done>=10){$("#tree-progress").textContent="Your tree is flourishing. Every task helped." ;$("#tree-progress-fill").style.width="100%";}else{const remaining=next-done;$("#tree-progress").textContent=`${remaining} more completed task${remaining===1?"":"s"} until the next stage.`;const p=done<3?done/3*100:done<6?(done-3)/3*100:(done-6)/4*100;$("#tree-progress-fill").style.width=`${Math.max(0,Math.min(100,p))}%`;}}
-  const breakIdeas=["Stretch your shoulders and unclench your jaw.","Drink some water and look away from the screen.","Stand up and walk around for two minutes.","Listen to one song you like.","Take five slow breaths, no rushing.","Tidy just one tiny part of your desk.","Look outside and rest your eyes for a minute.","Get a small snack if you're hungry."];
-  const challenges=["Review one definition without looking at your notes.","Put away five things around your study space.","Write down the next three steps for an assignment.","Solve one practice problem.","Read one page and explain its main idea aloud.","Check one deadline and prepare what you need.","Finish one tiny task you've been putting off.","Take a five-minute screen-free reset."];
-  $("#roll-dice").addEventListener("click",()=>{$("#break-prompt").textContent=breakIdeas[Math.floor(Math.random()*breakIdeas.length)];});
-  $("#new-challenge").addEventListener("click",()=>{$("#focus-prompt").textContent=challenges[Math.floor(Math.random()*challenges.length)];});
-  function renderAll(){renderTasks();renderHome();renderStreak();renderTree();renderSubjects();}
-  renderAll();goTo("homescreen");
-  if("serviceWorker" in navigator&&(location.protocol==="https:"||location.hostname==="localhost"))window.addEventListener("load",()=>navigator.serviceWorker.register("./service-worker.js").catch(()=>{}));
+
+  const $ = s => document.querySelector(s);
+  const $$ = s => [...document.querySelectorAll(s)];
+
+  const STORAGE = {
+    tasks: "lour-task-manager-tasks-v1",
+    subjects: "lour-task-manager-subjects-v1",
+    streak: "lour-task-manager-streak-v1",
+    name: "lour-task-manager-user-name-v1"
+  };
+
+  const read = (key, fallback) => {
+    try {
+      const value = localStorage.getItem(key);
+      return value ? JSON.parse(value) : fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
+  const save = (key, value) =>
+    localStorage.setItem(key, JSON.stringify(value));
+
+  let tasks = read(STORAGE.tasks, []);
+  let subjects = read(STORAGE.subjects, []);
+  let streak = read(STORAGE.streak, { count: 0, lastDate: null });
+  let userName = read(STORAGE.name, "");
+  let taskFilter = "all";
+  let toastTimer;
+
+  const todayISO = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  const dateLabel = iso => {
+    if (!iso) return "No date";
+
+    const d = new Date(`${iso}T12:00:00`);
+
+    return Number.isNaN(d.getTime())
+      ? iso
+      : d.toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+          year: "numeric"
+        });
+  };
+
+  const esc = value =>
+    String(value).replace(/[&<>"']/g, c => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;"
+    })[c]);
+
+  function toast(message) {
+    const node = $("#toast");
+    node.textContent = message;
+    node.classList.add("show");
+
+    clearTimeout(toastTimer);
+
+    toastTimer = setTimeout(
+      () => node.classList.remove("show"),
+      2200
+    );
+  }
+
+  // NAME SETUP
+  // Inline styles ensure the setup works without changing styles.css.
+  const setup = $("#name-setup");
+  const setupCard = $(".name-setup-card");
+  const nameForm = $("#name-form");
+  const nameInput = $("#user-name");
+  const confirmation = $("#name-confirmation");
+  const confirmationText = $("#name-confirmation-text");
+
+  Object.assign(setup.style, {
+    position: "fixed",
+    inset: "0",
+    zIndex: "9999",
+    background: "rgba(15, 15, 50, 0.78)",
+    display: "none",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "20px",
+    overflowY: "auto"
+  });
+
+  Object.assign(setupCard.style, {
+    width: "100%",
+    maxWidth: "420px",
+    margin: "auto",
+    padding: "24px",
+    borderRadius: "20px",
+    background: "var(--card, #ffffff)",
+    color: "var(--text, #191970)",
+    boxShadow: "0 18px 60px rgba(0, 0, 0, 0.25)"
+  });
+
+  function showNameSetup() {
+    if (userName && userName.trim()) {
+      setup.style.display = "none";
+      setup.hidden = true;
+      updatePageTitle();
+      return;
+    }
+
+    setup.hidden = false;
+    setup.style.display = "flex";
+    nameForm.hidden = false;
+    confirmation.hidden = true;
+    nameInput.value = "";
+    nameInput.focus();
+  }
+
+  function updatePageTitle() {
+    const currentScreen = $(".screen.active");
+    const id = currentScreen ? currentScreen.id : "homescreen";
+    const titles = {
+      homescreen: `Hello, ${userName || "there"}!`,
+      tasks: "My tasks",
+      gwacalc: "GWA Calculator",
+      streak: "Daily streak",
+      tree: "Grow your tree",
+      games: "Games~"
+    };
+
+    $("#page-title").textContent = titles[id] || "Task Manager";
+  }
+
+  nameForm.addEventListener("submit", event => {
+    event.preventDefault();
+
+    const enteredName = nameInput.value.trim();
+
+    if (!enteredName) {
+      nameInput.focus();
+      return;
+    }
+
+    confirmationText.textContent = `I'll call you ${enteredName}.`;
+    nameForm.hidden = true;
+    confirmation.hidden = false;
+  });
+
+  $("#confirm-yes").addEventListener("click", () => {
+    const confirmedName = nameInput.value.trim();
+
+    if (!confirmedName) {
+      confirmation.hidden = true;
+      nameForm.hidden = false;
+      nameInput.focus();
+      return;
+    }
+
+    userName = confirmedName;
+    save(STORAGE.name, userName);
+
+    setup.style.display = "none";
+    setup.hidden = true;
+
+    updatePageTitle();
+    toast(`Welcome, ${userName}!`);
+  });
+
+  $("#confirm-no").addEventListener("click", () => {
+    confirmation.hidden = true;
+    nameForm.hidden = false;
+    nameInput.focus();
+    nameInput.select();
+  });
+
+  // NAVIGATION
+  function goTo(id) {
+    if (!document.getElementById(id)) return;
+
+    $$(".screen").forEach(screen => {
+      screen.classList.toggle("active", screen.id === id);
+    });
+
+    $$(".nav-button").forEach(button => {
+      button.classList.toggle("active", button.dataset.go === id);
+    });
+
+    updatePageTitle();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+
+    if (id === "tasks") renderTasks();
+  }
+
+  $$("[data-go]").forEach(button => {
+    button.addEventListener("click", () => goTo(button.dataset.go));
+  });
+
+  $("#today-label").textContent = new Date().toLocaleDateString(
+    undefined,
+    { weekday: "short", month: "short", day: "numeric" }
+  );
+
+  // HOME
+  function renderHome() {
+    const done = tasks.filter(task => task.done).length;
+
+    $("#home-open-count").textContent = tasks.length - done;
+    $("#home-done-count").textContent = done;
+    $("#home-streak-count").textContent = streak.count;
+
+    const upcoming = tasks
+      .filter(task => !task.done)
+      .sort((a, b) => a.due.localeCompare(b.due))
+      .slice(0, 3);
+
+    const node = $("#home-upcoming");
+
+    if (!upcoming.length) {
+      node.className = "empty-state";
+      node.textContent = tasks.length
+        ? "Everything is completed. Nice work!"
+        : "No tasks yet. Add one when you're ready.";
+      return;
+    }
+
+    node.className = "";
+
+    node.innerHTML = upcoming.map(task => `
+      <div class="upcoming-item">
+        <div>
+          <strong>${esc(task.name)}</strong>
+          <small>${esc(task.type)}</small>
+        </div>
+        <small>${dateLabel(task.due)}</small>
+      </div>
+    `).join("");
+  }
+
+  // TASKS
+  function renderTasks() {
+    const list = $("#task-list");
+
+    const visible = tasks
+      .filter(task =>
+        taskFilter === "all" ||
+        (taskFilter === "open" && !task.done) ||
+        (taskFilter === "done" && task.done)
+      )
+      .sort((a, b) =>
+        Number(a.done) - Number(b.done) ||
+        a.due.localeCompare(b.due)
+      );
+
+    $("#task-count").textContent =
+      `${tasks.length} task${tasks.length === 1 ? "" : "s"}`;
+
+    if (!visible.length) {
+      list.innerHTML = `
+        <div class="card empty-state">
+          ${
+            taskFilter === "done"
+              ? "No completed tasks yet."
+              : taskFilter === "open"
+                ? "You're all caught up!"
+                : "No tasks here yet. Add your first task above."
+          }
+        </div>
+      `;
+      return;
+    }
+
+    list.innerHTML = visible.map(task => {
+      const overdue = !task.done && task.due < todayISO();
+
+      return `
+        <article class="task-item ${task.done ? "done" : ""}">
+          <input
+            class="task-check"
+            type="checkbox"
+            data-task-check="${esc(task.id)}"
+            ${task.done ? "checked" : ""}
+            aria-label="Mark ${esc(task.name)} complete"
+          >
+          <div class="task-main">
+            <p class="task-name">${esc(task.name)}</p>
+            <div class="task-meta">
+              <span class="type-chip">${esc(task.type)}</span>
+              <span class="${overdue ? "overdue" : ""}">
+                ${overdue ? "Overdue · " : "Due · "}${dateLabel(task.due)}
+              </span>
+            </div>
+          </div>
+          <button
+            class="delete-button"
+            data-task-delete="${esc(task.id)}"
+            aria-label="Delete ${esc(task.name)}"
+            title="Delete task"
+          >×</button>
+        </article>
+      `;
+    }).join("");
+  }
+
+  $("#task-form").addEventListener("submit", event => {
+    event.preventDefault();
+
+    const name = $("#task-input").value.trim();
+    const due = $("#task-due").value;
+
+    if (!name || !due) return;
+
+    tasks.push({
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      name,
+      due,
+      type: $("#task-type").value,
+      done: false
+    });
+
+    save(STORAGE.tasks, tasks);
+    $("#task-form").reset();
+    $("#task-due").value = todayISO();
+
+    renderAll();
+    toast("Task added!");
+  });
+
+  $("#task-due").value = todayISO();
+
+  $("#task-list").addEventListener("change", event => {
+    const id = event.target.dataset.taskCheck;
+    if (!id) return;
+
+    const task = tasks.find(item => item.id === id);
+    if (!task) return;
+
+    task.done = event.target.checked;
+
+    save(STORAGE.tasks, tasks);
+    renderAll();
+
+    toast(
+      task.done
+        ? "Task completed. Nice work!"
+        : "Task moved back to to-do."
+    );
+  });
+
+  $("#task-list").addEventListener("click", event => {
+    const button = event.target.closest("[data-task-delete]");
+    if (!button) return;
+
+    tasks = tasks.filter(task => task.id !== button.dataset.taskDelete);
+
+    save(STORAGE.tasks, tasks);
+    renderAll();
+    toast("Task deleted.");
+  });
+
+  $$(".filter-button").forEach(button => {
+    button.addEventListener("click", () => {
+      taskFilter = button.dataset.filter;
+
+      $$(".filter-button").forEach(item => {
+        item.classList.toggle("active", item === button);
+      });
+
+      renderTasks();
+    });
+  });
+
+  // GWA CALCULATOR
+  function renderSubjects() {
+    const list = $("#subject-list");
+
+    if (!subjects.length) {
+      list.className = "stack-list empty-state";
+      list.textContent = "No subjects added yet.";
+      $("#gwa-result").textContent = "—";
+      $("#gwa-details").textContent = "Add a subject to begin.";
+      return;
+    }
+
+    list.className = "stack-list";
+
+    list.innerHTML = subjects.map(subject => `
+      <div class="subject-row">
+        <div>
+          <strong>${esc(subject.name)}</strong>
+          <small>
+            ${subject.units} unit${Number(subject.units) === 1 ? "" : "s"}
+          </small>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="subject-grade">
+            ${Number(subject.grade).toFixed(2)}
+          </span>
+          <button
+            class="delete-button"
+            data-subject-delete="${esc(subject.id)}"
+            aria-label="Delete ${esc(subject.name)}"
+          >×</button>
+        </div>
+      </div>
+    `).join("");
+
+    const units = subjects.reduce(
+      (sum, subject) => sum + Number(subject.units), 0
+    );
+
+    const weighted = subjects.reduce(
+      (sum, subject) =>
+        sum + Number(subject.grade) * Number(subject.units),
+      0
+    );
+
+    $("#gwa-result").textContent = (weighted / units).toFixed(2);
+    $("#gwa-details").textContent =
+      `${subjects.length} subject${subjects.length === 1 ? "" : "s"} · ${units.toFixed(1)} total units`;
+  }
+
+  $("#gwa-form").addEventListener("submit", event => {
+    event.preventDefault();
+
+    const name = $("#subject-name").value.trim();
+    const grade = Number($("#subject-grade").value);
+    const units = Number($("#subject-units").value);
+
+    if (
+      !name ||
+      !Number.isFinite(grade) ||
+      grade < 1 ||
+      grade > 5 ||
+      !Number.isFinite(units) ||
+      units <= 0
+    ) {
+      toast("Enter a valid subject, grade, and unit value.");
+      return;
+    }
+
+    subjects.push({
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      name,
+      grade,
+      units
+    });
+
+    save(STORAGE.subjects, subjects);
+    $("#gwa-form").reset();
+    $("#subject-units").value = "1";
+
+    renderSubjects();
+    toast("Subject added!");
+  });
+
+  $("#subject-list").addEventListener("click", event => {
+    const button = event.target.closest("[data-subject-delete]");
+    if (!button) return;
+
+    subjects = subjects.filter(
+      subject => subject.id !== button.dataset.subjectDelete
+    );
+
+    save(STORAGE.subjects, subjects);
+    renderSubjects();
+    toast("Subject removed.");
+  });
+
+  $("#clear-subjects").addEventListener("click", () => {
+    if (!subjects.length) {
+      toast("There are no subjects to clear.");
+      return;
+    }
+
+    if (!confirm("Clear all subjects from the GWA calculator?")) return;
+
+    subjects = [];
+    save(STORAGE.subjects, subjects);
+    renderSubjects();
+    toast("Subjects cleared.");
+  });
+
+  // DAILY STREAK
+  function renderStreak() {
+    const checked = streak.lastDate === todayISO();
+
+    $("#streak-number").textContent = streak.count;
+    $("#home-streak-count").textContent = streak.count;
+
+    $("#check-in-button").disabled = checked;
+    $("#check-in-button").textContent = checked
+      ? "Checked in today ✓"
+      : "Check in for today";
+
+    $("#check-in-button").style.opacity = checked ? ".7" : "1";
+
+    $("#streak-message").textContent = checked
+      ? "You showed up for yourself today."
+      : "One small check-in is enough.";
+
+    $("#last-checkin").textContent = streak.lastDate
+      ? `Last check-in: ${dateLabel(streak.lastDate)}.`
+      : "You haven't checked in yet.";
+  }
+
+  $("#check-in-button").addEventListener("click", () => {
+    const today = todayISO();
+
+    if (streak.lastDate === today) {
+      toast("You've already checked in today.");
+      return;
+    }
+
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const yesterdayISO =
+      `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
+
+    streak.count =
+      streak.lastDate === yesterdayISO ? streak.count + 1 : 1;
+
+    streak.lastDate = today;
+
+    save(STORAGE.streak, streak);
+    renderStreak();
+    renderHome();
+
+    toast("Check-in saved. Keep going at your own pace!");
+  });
+
+  // GROWING TREE
+  function renderTree() {
+    const done = tasks.filter(task => task.done).length;
+
+    let emoji = "🌱";
+    let stage = "A tiny sprout";
+    let next = 3;
+
+    if (done >= 10) {
+      emoji = "🌸";
+      stage = "A flourishing tree";
+      next = done;
+    } else if (done >= 6) {
+      emoji = "🌳";
+      stage = "A growing tree";
+      next = 10;
+    } else if (done >= 3) {
+      emoji = "🌿";
+      stage = "A young plant";
+      next = 6;
+    }
+
+    $("#tree-art").textContent = emoji;
+    $("#tree-stage").textContent = stage;
+    $("#tree-total").textContent =
+      `${done} completed task${done === 1 ? "" : "s"} counted`;
+
+    if (done >= 10) {
+      $("#tree-progress").textContent =
+        "Your tree is flourishing. Every task helped.";
+      $("#tree-progress-fill").style.width = "100%";
+    } else {
+      const remaining = next - done;
+
+      $("#tree-progress").textContent =
+        `${remaining} more completed task${remaining === 1 ? "" : "s"} until the next stage.`;
+
+      const progress = done < 3
+        ? done / 3 * 100
+        : done < 6
+          ? (done - 3) / 3 * 100
+          : (done - 6) / 4 * 100;
+
+      $("#tree-progress-fill").style.width =
+        `${Math.max(0, Math.min(100, progress))}%`;
+    }
+  }
+
+  // MINI WORDLE
+  const wordleWords = [
+    "APPLE", "BRAIN", "BRAVE", "BREAD", "BRICK",
+    "CHAIR", "CHESS", "CLOUD", "CRANE", "DREAM",
+    "EARTH", "FLAME", "FRAME", "FRUIT", "GIANT",
+    "GRACE", "GRAPE", "GREEN", "HEART", "HOUSE",
+    "LIGHT", "MANGO", "MONEY", "MUSIC", "NIGHT",
+    "OCEAN", "PAINT", "PAPER", "PEACH", "PEARL",
+    "PIANO", "PLANT", "PLATE", "POINT", "QUEEN",
+    "QUIET", "RADIO", "RIVER", "ROBOT", "SHEEP",
+    "SHINE", "SHIRT", "SMILE", "SNAKE", "SPACE",
+    "SPARK", "SPOON", "STARS", "STONE", "STORM",
+    "SUGAR", "TABLE", "TIGER", "TRAIN", "TRUST",
+    "WATER", "WHALE", "WORLD", "WRITE", "YOUTH"
+  ];
+
+  let wordleAnswer = "";
+  let wordleGuesses = [];
+  let wordleFinished = false;
+
+  const wordleBoard = $("#wordle-board");
+  const wordleInput = $("#wordle-input");
+  const wordleMessage = $("#wordle-message");
+  const wordleForm = $("#wordle-form");
+
+  // Create a basic board without requiring additional CSS.
+  Object.assign(wordleBoard.style, {
+    display: "grid",
+    gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+    gap: "6px",
+    maxWidth: "300px",
+    margin: "16px auto"
+  });
+
+  function startWordle() {
+    wordleAnswer =
+      wordleWords[Math.floor(Math.random() * wordleWords.length)];
+
+    wordleGuesses = [];
+    wordleFinished = false;
+
+    wordleMessage.textContent = "Ready? Make your first guess!";
+    wordleInput.disabled = false;
+    wordleForm.querySelector("button[type='submit']").disabled = false;
+    wordleInput.value = "";
+
+    renderWordleBoard();
+    wordleInput.focus();
+  }
+
+  function renderWordleBoard() {
+    wordleBoard.innerHTML = "";
+
+    for (let row = 0; row < 6; row++) {
+      for (let col = 0; col < 5; col++) {
+        const tile = document.createElement("div");
+        const guess = wordleGuesses[row];
+
+        tile.textContent = guess ? guess[col] : "";
+
+        Object.assign(tile.style, {
+          aspectRatio: "1",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          border: "2px solid #b8b8cf",
+          borderRadius: "6px",
+          fontSize: "1.15rem",
+          fontWeight: "700",
+          minWidth: "0",
+          textTransform: "uppercase",
+          color: "#ffffff",
+          background: "transparent"
+        });
+
+        if (guess) {
+          const result = evaluateWordleGuess(guess);
+          const status = result[col];
+
+          tile.style.borderColor = "transparent";
+          tile.style.background =
+            status === "correct"
+              ? "#39864a"
+              : status === "present"
+                ? "#c29b24"
+                : "#777787";
+        }
+
+        wordleBoard.appendChild(tile);
+      }
+    }
+  }
+
+  function evaluateWordleGuess(guess) {
+    const result = Array(5).fill("absent");
+    const remaining = wordleAnswer.split("");
+
+    // Mark correct letters first.
+    for (let i = 0; i < 5; i++) {
+      if (guess[i] === wordleAnswer[i]) {
+        result[i] = "correct";
+        remaining[i] = null;
+      }
+    }
+
+    // Then mark letters present elsewhere, accounting for duplicates.
+    for (let i = 0; i < 5; i++) {
+      if (result[i] === "correct") continue;
+
+      const index = remaining.indexOf(guess[i]);
+
+      if (index !== -1) {
+        result[i] = "present";
+        remaining[index] = null;
+      }
+    }
+
+    return result;
+  }
+
+  wordleForm.addEventListener("submit", event => {
+    event.preventDefault();
+
+    if (wordleFinished) return;
+
+    const guess = wordleInput.value.trim().toUpperCase();
+
+    if (!/^[A-Z]{5}$/.test(guess)) {
+      wordleMessage.textContent = "Enter exactly five letters.";
+      return;
+    }
+
+    if (!wordleWords.includes(guess)) {
+      wordleMessage.textContent =
+        "That word isn't in this mini game's word list. Try another!";
+      return;
+    }
+
+    wordleGuesses.push(guess);
+    renderWordleBoard();
+    wordleInput.value = "";
+
+    if (guess === wordleAnswer) {
+      wordleFinished = true;
+      wordleMessage.textContent =
+        `You got it in ${wordleGuesses.length} ${wordleGuesses.length === 1 ? "try" : "tries"}! 🎉`;
+    } else if (wordleGuesses.length >= 6) {
+      wordleFinished = true;
+      wordleMessage.textContent =
+        `Game over! The word was ${wordleAnswer}.`;
+    } else {
+      wordleMessage.textContent =
+        `${6 - wordleGuesses.length} guesses left. Keep going!`;
+    }
+
+    if (wordleFinished) {
+      wordleInput.disabled = true;
+      wordleForm.querySelector("button[type='submit']").disabled = true;
+    }
+  });
+
+  $("#wordle-reset").addEventListener("click", startWordle);
+
+  // ROCK PAPER SCISSORS
+  const rpsMoves = ["rock", "paper", "scissors"];
+
+  const rpsEmoji = {
+    rock: "✊",
+    paper: "✋",
+    scissors: "✌️"
+  };
+
+  let rpsWins = 0;
+  let rpsLosses = 0;
+  let rpsTies = 0;
+
+  function renderRpsScore() {
+    $("#rps-score").textContent =
+      `Wins: ${rpsWins} · Losses: ${rpsLosses} · Ties: ${rpsTies}`;
+  }
+
+  $$(".rps-choice").forEach(button => {
+    button.addEventListener("click", () => {
+      const player = button.dataset.choice;
+      const computer =
+        rpsMoves[Math.floor(Math.random() * rpsMoves.length)];
+
+      let result;
+
+      if (player === computer) {
+        rpsTies++;
+        result = "It's a tie!";
+      } else if (
+        (player === "rock" && computer === "scissors") ||
+        (player === "paper" && computer === "rock") ||
+        (player === "scissors" && computer === "paper")
+      ) {
+        rpsWins++;
+        result = "You win this round! 🎉";
+      } else {
+        rpsLosses++;
+        result = "I win this round. Try again!";
+      }
+
+      $("#rps-result").textContent =
+        `You: ${rpsEmoji[player]} ${player} · Me: ${rpsEmoji[computer]} ${computer}. ${result}`;
+
+      renderRpsScore();
+    });
+  });
+
+  $("#rps-reset").addEventListener("click", () => {
+    rpsWins = 0;
+    rpsLosses = 0;
+    rpsTies = 0;
+
+    $("#rps-result").textContent =
+      "Score reset! Choose your next move.";
+
+    renderRpsScore();
+  });
+
+  // NUMBER GUESSING GAME
+  let secretNumber = 0;
+  let numberAttempts = 0;
+  let numberFinished = false;
+
+  const numberInput = $("#number-input");
+  const numberMessage = $("#number-message");
+  const numberAttemptsLabel = $("#number-attempts");
+  const numberForm = $("#number-form");
+
+  function startNumberGame() {
+    secretNumber = Math.floor(Math.random() * 100) + 1;
+    numberAttempts = 0;
+    numberFinished = false;
+
+    numberInput.value = "";
+    numberInput.disabled = false;
+    numberForm.querySelector("button[type='submit']").disabled = false;
+
+    numberMessage.textContent = "Make your first guess!";
+    numberAttemptsLabel.textContent = "Attempts: 0";
+    numberInput.focus();
+  }
+
+  numberForm.addEventListener("submit", event => {
+    event.preventDefault();
+
+    if (numberFinished) return;
+
+    const guess = Number(numberInput.value);
+
+    if (
+      !Number.isInteger(guess) ||
+      guess < 1 ||
+      guess > 100
+    ) {
+      numberMessage.textContent =
+        "Enter a whole number from 1 to 100.";
+      return;
+    }
+
+    numberAttempts++;
+    numberAttemptsLabel.textContent = `Attempts: ${numberAttempts}`;
+
+    if (guess === secretNumber) {
+      numberFinished = true;
+      numberMessage.textContent =
+        `Correct! The number was ${secretNumber}. You got it in ${numberAttempts} ${numberAttempts === 1 ? "guess" : "guesses"}! 🎉`;
+    } else if (guess < secretNumber) {
+      numberMessage.textContent = "Too low! Try a higher number.";
+    } else {
+      numberMessage.textContent = "Too high! Try a lower number.";
+    }
+
+    if (numberFinished) {
+      numberInput.disabled = true;
+      numberForm.querySelector("button[type='submit']").disabled = true;
+    }
+
+    numberInput.value = "";
+    if (!numberFinished) numberInput.focus();
+  });
+
+  $("#number-reset").addEventListener("click", startNumberGame);
+
+  // BREAK-TIME DICE
+  const breakIdeas = [
+    "Stretch your shoulders and unclench your jaw.",
+    "Drink some water and look away from the screen.",
+    "Stand up and walk around for two minutes.",
+    "Listen to one song you like.",
+    "Take five slow breaths, no rushing.",
+    "Tidy just one tiny part of your desk.",
+    "Look outside and rest your eyes for a minute.",
+    "Get a small snack if you're hungry."
+  ];
+
+  $("#roll-dice").addEventListener("click", () => {
+    $("#break-prompt").textContent =
+      breakIdeas[Math.floor(Math.random() * breakIdeas.length)];
+  });
+
+  // QUICK FOCUS CHALLENGE
+  const challenges = [
+    "Review one definition without looking at your notes.",
+    "Put away five things around your study space.",
+    "Write down the next three steps for an assignment.",
+    "Solve one practice problem.",
+    "Read one page and explain its main idea aloud.",
+    "Check one deadline and prepare what you need.",
+    "Finish one tiny task you've been putting off.",
+    "Take a five-minute screen-free reset."
+  ];
+
+  $("#new-challenge").addEventListener("click", () => {
+    $("#focus-prompt").textContent =
+      challenges[Math.floor(Math.random() * challenges.length)];
+  });
+
+  // REFRESH ALL APP SECTIONS
+  function renderAll() {
+    renderTasks();
+    renderHome();
+    renderStreak();
+    renderTree();
+    renderSubjects();
+  }
+
+  renderAll();
+  goTo("homescreen");
+
+  // Start the games with a random answer.
+  startWordle();
+  startNumberGame();
+
+  // Ask for a name only if one has not been confirmed yet.
+  showNameSetup();
+
+  // SERVICE WORKER / PWA
+  if (
+    "serviceWorker" in navigator &&
+    (location.protocol === "https:" || location.hostname === "localhost")
+  ) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker
+        .register("./service-worker.js")
+        .catch(() => {});
+    });
+  }
 })();
